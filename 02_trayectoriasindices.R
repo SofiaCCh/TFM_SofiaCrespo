@@ -11,7 +11,7 @@ library(tidyverse)
 library(mgcv)
 library(ggpubr)
 
-
+ 
 
 # Paleta de colores para cada tipo de bosque (igual para todo el TFM)
 colores_bosques <- c(
