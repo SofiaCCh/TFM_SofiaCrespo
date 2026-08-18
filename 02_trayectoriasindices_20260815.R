@@ -11,6 +11,8 @@ library(tidyverse)
 library(mgcv)
 library(ggpubr)
 
+
+
 # Paleta de colores para cada tipo de bosque (igual para todo el TFM)
 colores_bosques <- c(
   "Primario" = "#1A5320",
@@ -60,7 +62,7 @@ cat("Columnas:", ncol(datos_originales), "\n")
 # Visualizar el número total de NAs (valores nulos)
 colSums(is.na(datos_originales))
 
-# Nombre de las columnas del dataframe
+# Nombre de las columnas del dataframe 
 print(names(datos_originales))
 
 # Visualización general de los datos
