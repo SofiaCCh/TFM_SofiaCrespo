@@ -339,6 +339,13 @@ grafico_correlacion_3x3 <- ggplot(datos_correlacion, aes(x = NDMI, y = NDVI, col
     fill = "darkred",
     alpha = 0.2, 
     linewidth = 1) +
+  stat_cor(
+    aes(label = after_stat(rr.label)),
+    color = "black",
+    size = 4.5,
+    label.x.npc = "left",
+    label.y.npc = "top"
+  ) +
   facet_grid(Bosque ~ Zona) +
   scale_color_manual(values = colores_bosques) +
   scale_fill_manual(values = colores_bosques) +

@@ -24,39 +24,49 @@ aseq <- 2022
 
 
 # Función: calcula Resistencia, Recuperación y Resiliencia
-# para una ventana pre/post concreta
+# para una ventana pre/post concreta (Lloret et al. 2011:
+# PreDr y PostDr son la MEDIA de los años previos/posteriores a la
+# sequía, no un año aislado; ver también Moreno-Fernández et al. 2022,
+# Ecosystems, que usa la media de los 4 años previos/posteriores)
 # ----------------------------------------------------------------------------
 
-calcular_resiliencia <- function(datos, apre, apost, aseq) {
+calcular_resiliencia <- function(datos, ventana, aseq) {
   
-  # Medianas de referencia por Zona-Bosque: año pre-sequía y año de sequía
+  anios_pre  <- (aseq - ventana):(aseq - 1)
+  anios_post <- (aseq + 1):(aseq + ventana)
+  
+  # Referencias por Zona-Bosque:
+  #  - ref_pre (PreDr): media de los "ventana" años previos a la sequía
+  #  - ref_seq (Dr):    año de la sequía (valor único, no se promedia)
   medianas_ref <- datos |>
     group_by(Zona, Bosque) |>
     summarise(
-      ref_pre = median(NDVI[Year == apre], na.rm = TRUE),
-      ref_seq = median(NDVI[Year == aseq], na.rm = TRUE),
+      ref_pre = mean(NDVI[Year %in% anios_pre], na.rm = TRUE),
+      ref_seq = mean(NDVI[Year == aseq], na.rm = TRUE),
       .groups = "drop"
     )
   
-  # RESISTENCIA: año de sequía frente a la línea base pre-sequía
+  # RESISTENCIA: año de sequía (Dr, por píxel) frente a la línea base pre-sequía (PreDr)
   df_rt <- datos |>
     filter(Year == aseq) |>
     left_join(medianas_ref, by = c("Zona", "Bosque")) |>
     mutate(Metrica = "Resistencia", Valor = NDVI / ref_pre) |>
-    select(Zona, Bosque, Metrica, Valor)
+    select(Zona, Bosque, Pixel_ID, Metrica, Valor)
   
-  # Año post-sequía, base para Recuperación y Resiliencia
+  # PostDr: media por píxel de los "ventana" años posteriores a la sequía
   df_post <- datos |>
-    filter(Year == apost) |>
+    filter(Year %in% anios_post) |>
+    group_by(Zona, Bosque, Pixel_ID) |>
+    summarise(NDVI_post = mean(NDVI, na.rm = TRUE), .groups = "drop") |>
     left_join(medianas_ref, by = c("Zona", "Bosque"))
   
   df_rc <- df_post |>
-    mutate(Metrica = "Recuperación", Valor = NDVI / ref_seq) |>
-    select(Zona, Bosque, Metrica, Valor)
+    mutate(Metrica = "Recuperación", Valor = NDVI_post / ref_seq) |>
+    select(Zona, Bosque, Pixel_ID, Metrica, Valor)
   
   df_rs <- df_post |>
-    mutate(Metrica = "Resiliencia", Valor = NDVI / ref_pre) |>
-    select(Zona, Bosque, Metrica, Valor)
+    mutate(Metrica = "Resiliencia", Valor = NDVI_post / ref_pre) |>
+    select(Zona, Bosque, Pixel_ID, Metrica, Valor)
   
   # Unir las tres métricas y ordenar los factores
   bind_rows(df_rc, df_rs, df_rt) |>
@@ -86,33 +96,21 @@ graficar_boxplot_resiliencia <- function(df_boxplot) {
     )
 }
 
-# 1 año pre- y post-sequía (2021, 2022, 2023)
+# 1 año pre- y post-sequía (media de 2021 y media de 2023, frente a 2022)
 # ----------------------------------------------------------------------------
-
-apre1 <- 2021
-apost1 <- 2023
-
-df_boxplot_1a <- calcular_resiliencia(datos_limpios, apre1, apost1, aseq)
+df_boxplot_1a <- calcular_resiliencia(datos_limpios, ventana = 1, aseq = aseq)
 boxplot_1a <- graficar_boxplot_resiliencia(df_boxplot_1a)
 print(boxplot_1a)
 
-# 2 años pre- y post-sequía (2020, 2022, 2024)
+# 2 años pre- y post-sequía (media de 2020-2021 y media de 2023-2024, frente a 2022)
 # ----------------------------------------------------------------------------
-
-apre2 <- 2020
-apost2 <- 2024
-
-df_boxplot_2a <- calcular_resiliencia(datos_limpios, apre2, apost2, aseq)
+df_boxplot_2a <- calcular_resiliencia(datos_limpios, ventana = 2, aseq = aseq)
 boxplot_2a <- graficar_boxplot_resiliencia(df_boxplot_2a)
 print(boxplot_2a)
 
-# 3 años pre- y post-sequía (2019, 2022, 2025)
+# 3 años pre- y post-sequía (media de 2019-2021 y media de 2023-2025, frente a 2022)
 # ----------------------------------------------------------------------------
-
-apre3 <- 2019
-apost3 <- 2025
-
-df_boxplot_3a <- calcular_resiliencia(datos_limpios, apre3, apost3, aseq)
+df_boxplot_3a <- calcular_resiliencia(datos_limpios, ventana = 3, aseq = aseq)
 boxplot_3a <- graficar_boxplot_resiliencia(df_boxplot_3a)
 print(boxplot_3a)
 
@@ -148,17 +146,12 @@ ggsave(
 
 library(rstatix)
 library(multcompView)
+library(tidyr)
 
 colores_ventanas <- c(
-  "1 año"  = "#D8BFD8",
-  "2 años" = "#9B59B6",
-  "3 años" = "#4A235A"
-)
-
-colores_ventanas <- c(
-  "1 año"  = "#E8D5B7",
-  "2 años" = "#B08D57",
-  "3 años" = "#5C4326"
+  "1 año"  = "#BFD8D2",
+  "2 años" = "#5F9EA0",
+  "3 años" = "#264653"
 )
 
 # Unir las tablas y marcar la ventana
@@ -172,11 +165,46 @@ df_resiliencia_todas <- bind_rows(
 
 head(df_resiliencia_todas)
 
-# Wilcoxon por pares, dentro de cada Zona-Bosque-Métrica
+# Wilcoxon pareado por píxel, dentro de cada Zona-Bosque-Métrica
 # ----------------------------------------------------------------------------
+# Cada Pixel_ID aparece en las 3 ventanas (mismo píxel, distinta forma de
+# calcular Resistencia/Recuperación/Resiliencia), así que las comparaciones
+# entre ventanas NO son independientes: hay que aparear por Pixel_ID
+# (wilcox.test(..., paired = TRUE)) en vez de tratarlas como grupos sueltos
+
+comparaciones_ventanas <- combn(levels(df_resiliencia_todas$Ventana), 2, simplify = FALSE)
+
 resultados_wilcoxon <- df_resiliencia_todas |>
   group_by(Zona, Bosque, Metrica) |>
-  pairwise_wilcox_test(Valor ~ Ventana, p.adjust.method = "bonferroni")
+  group_modify(~ {
+    
+    datos_grupo <- .x
+    
+    # Formato ancho: una fila por píxel, una columna por ventana.
+    # drop_na() se queda solo con los píxeles que tienen valor en las 3
+    # ventanas, condición necesaria para que el apareamiento sea válido.
+    datos_anchos <- datos_grupo |>
+      select(Pixel_ID, Ventana, Valor) |>
+      pivot_wider(names_from = Ventana, values_from = Valor) |>
+      drop_na()
+    
+    bind_rows(lapply(comparaciones_ventanas, function(par) {
+      x <- datos_anchos[[par[1]]]
+      y <- datos_anchos[[par[2]]]
+      test <- wilcox.test(x, y, paired = TRUE)
+      tibble(
+        group1 = par[1],
+        group2 = par[2],
+        n = length(x),
+        statistic = unname(test$statistic),
+        p = test$p.value
+      )
+    }))
+  }) |>
+  ungroup() |>
+  group_by(Zona, Bosque, Metrica) |>
+  mutate(p.adj = p.adjust(p, method = "bonferroni")) |>
+  ungroup()
 
 head(resultados_wilcoxon, 10)
 
