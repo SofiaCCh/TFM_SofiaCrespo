@@ -14,11 +14,11 @@ datos_limpios <- readRDS("03_results/db_limpios/datos_limpios.rds") |>
   mutate(Bosque = recode(Bosque, "Plantacion" = "Plantación"))
 
 datos_azt <- datos_limpios |> 
-  filter(Zona == "Aztaparreta")
+  filter(Zona == "Aztaparreta", Year >= 2017)
 datos_liz <- datos_limpios |> 
-  filter(Zona == "Lizardoia")
+  filter(Zona == "Lizardoia", Year >= 2017)
 datos_tjn <- datos_limpios |> 
-  filter(Zona == "Tejera Negra")
+  filter(Zona == "Tejera Negra", Year >= 2017)
 
 # ============================================================================
 # 2. Paleta de colores y tema (igual que en el resto del TFM)
@@ -43,7 +43,7 @@ tema_tfm_2 <- theme_minimal(base_size = 16) +
 
 # NDVI - Aztaparreta
 modelo_ndvi_azt <- gam(
-  NDVI ~ s(Year, by = Bosque, k = 10) + Bosque,
+  NDVI ~ s(Year, by = Bosque, k = 8) + Bosque,
   data = datos_azt
 )
 
@@ -51,7 +51,7 @@ summary(modelo_ndvi_azt)
 
 # NDMI - Aztaparreta
 modelo_ndmi_azt <- gam(
-  NDMI ~ s(Year, by = Bosque, k = 10) + Bosque,
+  NDMI ~ s(Year, by = Bosque, k = 8) + Bosque,
   data = datos_azt
 )
 
@@ -59,7 +59,7 @@ summary(modelo_ndmi_azt)
 
 # NDVI - Lizardoia
 modelo_ndvi_liz <- gam(
-  NDVI ~ s(Year, by = Bosque, k = 12) + Bosque,
+  NDVI ~ s(Year, by = Bosque, k = 8) + Bosque,
   data = datos_liz
 )
 
@@ -67,7 +67,7 @@ summary(modelo_ndvi_liz)
 
 # NDMI - Lizardoia
 modelo_ndmi_liz <- gam(
-  NDMI ~ s(Year, by = Bosque, k = 12) + Bosque,
+  NDMI ~ s(Year, by = Bosque, k = 8) + Bosque,
   data = datos_liz
 )
 
@@ -75,7 +75,7 @@ summary(modelo_ndmi_liz)
 
 # NDVI - Tejera Negra
 modelo_ndvi_tjn <- gam(
-  NDVI ~ s(Year, by = Bosque, k = 10) + Bosque,
+  NDVI ~ s(Year, by = Bosque, k = 8) + Bosque,
   data = datos_tjn
 )
 
@@ -83,7 +83,7 @@ summary(modelo_ndvi_tjn)
 
 # NDMI - Tejera Negra
 modelo_ndmi_tjn <- gam(
-  NDMI ~ s(Year, by = Bosque, k = 10) + Bosque,
+  NDMI ~ s(Year, by = Bosque, k = 8) + Bosque,
   data = datos_tjn
 )
 
@@ -101,17 +101,17 @@ gam.check(modelo_ndmi_tjn)
 # Crear una tabla de años a predecir
 # ============================================================================
 nuevos_datos_azt <- expand.grid(
-  Year = seq(2013, 2025, by = 0.1),
+  Year = seq(2017, 2025, by = 0.1),
   Bosque = c("Primario", "Secundario", "Plantación")
 )
 
 nuevos_datos_liz <- expand.grid(
-  Year = seq(2013, 2025, by = 0.1),
+  Year = seq(2017, 2025, by = 0.1),
   Bosque = c("Primario", "Secundario", "Plantación")
 )
 
 nuevos_datos_tjn <- expand.grid(
-  Year = seq(2013, 2025, by = 0.1),
+  Year = seq(2017, 2025, by = 0.1),
   Bosque = c("Primario", "Secundario", "Plantación")
 )
 
@@ -185,7 +185,7 @@ grafico_ndvi_gam <- ggplot(predicciones_gam, aes(x = Year, y = NDVI_pred, color 
   scale_color_manual(values = colores_bosques) +
   scale_fill_manual(values = colores_bosques) +
   guides(fill = "none") +
-  scale_x_continuous(breaks = 2013:2025) +
+  scale_x_continuous(breaks = 2017:2025) +
   labs(x = "Año",
        y = "NDVI",
        color = "Tipo de bosque") +
@@ -209,7 +209,7 @@ grafico_ndmi_gam <- ggplot(predicciones_gam, aes(x = Year, y = NDMI_pred, color 
   scale_color_manual(values = colores_bosques) +
   scale_fill_manual(values = colores_bosques) +
   guides(fill = "none") +
-  scale_x_continuous(breaks = 2013:2025) +
+  scale_x_continuous(breaks = 2017:2025) +
   labs(x = "Año",
        y = "NDMI",
        color = "Tipo de bosque") +

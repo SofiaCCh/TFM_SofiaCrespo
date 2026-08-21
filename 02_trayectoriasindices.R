@@ -196,6 +196,7 @@ print(round(matriz_correlacion, 2))
 # ============================================================================
 
 indices_anuales <- datos_limpios |>
+  filter(Year >= 2017) |>
   group_by(Zona, Bosque, Year) |>
   summarise(
     # Conteo de píxeles
@@ -266,7 +267,7 @@ grafico_ndvi <- ggplot(indices_anuales, aes(x = Year, y = NDVI_media, color = Bo
   scale_color_manual(values = colores_bosques) +
   scale_fill_manual(values = colores_bosques) +
   guides(fill = "none") +
-  scale_x_continuous(breaks = 2013:2025) +
+  scale_x_continuous(breaks = 2017:2025) +
   labs(x = "Año",
        y = "NDVI",
        color = "Tipo de bosque"
@@ -290,7 +291,7 @@ grafico_ndmi <- ggplot(indices_anuales, aes(x = Year, y = NDMI_media, color = Bo
   scale_color_manual(values = colores_bosques) +
   scale_fill_manual(values = colores_bosques) +
   guides(fill = "none") +
-  scale_x_continuous(breaks = 2013:2025) +
+  scale_x_continuous(breaks = 2017:2025) +
   labs(x = "Año",
        y = "NDMI",
        color = "Tipo de bosque"
