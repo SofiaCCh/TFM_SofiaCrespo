@@ -141,18 +141,17 @@ ggsave(
 )
 
 # ============================================================================
-# Test de Wilcoxon entre ventanas (1, 2 y 3 años) por Zona-Bosque-Métrica
+# Test de Wilcoxon entre tipos de bosque
 # ============================================================================
 
-library(rstatix)
 library(multcompView)
 library(tidyr)
 
-colores_ventanas <- c(
-  "1 año"  = "#BFD8D2",
-  "2 años" = "#5F9EA0",
-  "3 años" = "#264653"
-)
+#colores_ventanas <- c(
+#  "1 año"  = "#BFD8D2",
+#  "2 años" = "#5F9EA0",
+#  "3 años" = "#264653"
+#)
 
 # Unir las tablas y marcar la ventana
 # ----------------------------------------------------------------------------
@@ -165,44 +164,53 @@ df_resiliencia_todas <- bind_rows(
 
 head(df_resiliencia_todas)
 
-# Wilcoxon pareado por píxel, dentro de cada Zona-Bosque-Métrica
+# Kruskal-Wallis: test global dentro de cada Zona-Ventana-Métrica
 # ----------------------------------------------------------------------------
-# Cada Pixel_ID aparece en las 3 ventanas (mismo píxel, distinta forma de
-# calcular Resistencia/Recuperación/Resiliencia), así que las comparaciones
-# entre ventanas NO son independientes: hay que aparear por Pixel_ID
-# (wilcox.test(..., paired = TRUE)) en vez de tratarlas como grupos sueltos
+resultados_kruskal <- df_resiliencia_todas |>
+  group_by(Zona, Ventana, Metrica) |>
+  group_modify(~ {
+    test <- kruskal.test(Valor ~ Bosque, data = .x)
+    tibble(
+      chi_cuadrado = unname(test$statistic),
+      df = unname(test$parameter),
+      p = test$p.value
+    )
+  }) |>
+  ungroup()
 
-comparaciones_ventanas <- combn(levels(df_resiliencia_todas$Ventana), 2, simplify = FALSE)
+head(resultados_kruskal, 30)
+
+# Wilcoxon por pares entre tipos de bosque, dentro de cada Zona-Ventana-Métrica
+# ----------------------------------------------------------------------------
+# Cada Pixel_ID pertenece a UN solo tipo de bosque (a diferencia de las
+# ventanas, donde el mismo píxel se repetía en las 3). Son grupos
+# independientes, así que el test va SIN aparear (paired = FALSE) y no
+# hace falta pivotar los datos a formato ancho.
+
+comparaciones_bosques <- combn(levels(df_resiliencia_todas$Bosque), 2, simplify = FALSE)
 
 resultados_wilcoxon <- df_resiliencia_todas |>
-  group_by(Zona, Bosque, Metrica) |>
+  group_by(Zona, Ventana, Metrica) |>
   group_modify(~ {
     
     datos_grupo <- .x
     
-    # Formato ancho: una fila por píxel, una columna por ventana.
-    # drop_na() se queda solo con los píxeles que tienen valor en las 3
-    # ventanas, condición necesaria para que el apareamiento sea válido.
-    datos_anchos <- datos_grupo |>
-      select(Pixel_ID, Ventana, Valor) |>
-      pivot_wider(names_from = Ventana, values_from = Valor) |>
-      drop_na()
-    
-    bind_rows(lapply(comparaciones_ventanas, function(par) {
-      x <- datos_anchos[[par[1]]]
-      y <- datos_anchos[[par[2]]]
-      test <- wilcox.test(x, y, paired = TRUE)
+    bind_rows(lapply(comparaciones_bosques, function(par) {
+      x <- datos_grupo$Valor[datos_grupo$Bosque == par[1]]
+      y <- datos_grupo$Valor[datos_grupo$Bosque == par[2]]
+      test <- wilcox.test(x, y, paired = FALSE)
       tibble(
         group1 = par[1],
         group2 = par[2],
-        n = length(x),
+        n1 = length(x),
+        n2 = length(y),
         statistic = unname(test$statistic),
         p = test$p.value
       )
     }))
   }) |>
   ungroup() |>
-  group_by(Zona, Bosque, Metrica) |>
+  group_by(Zona, Ventana, Metrica) |>
   mutate(p.adj = p.adjust(p, method = "bonferroni")) |>
   ungroup()
 
@@ -214,11 +222,11 @@ resultados_wilcoxon <- resultados_wilcoxon |>
   mutate(comparacion = paste(group1, group2, sep = "-"))
 
 letras_por_grupo <- resultados_wilcoxon |>
-  group_by(Zona, Bosque, Metrica) |>
+  group_by(Zona, Ventana, Metrica) |>
   group_modify(~ {
     p_vector <- setNames(.x$p.adj, .x$comparacion)
     letras <- multcompLetters(p_vector)$Letters
-    tibble(Ventana = names(letras), Letra = letras)
+    tibble(Bosque = names(letras), Letra = letras)
   }) |>
   ungroup()
 
@@ -227,36 +235,38 @@ head(letras_por_grupo, 15)
 # Arreglar la posición de las letras
 # ----------------------------------------------------------------------------
 posiciones_letras <- df_resiliencia_todas |>
-  group_by(Zona, Bosque, Metrica, Ventana) |>
+  group_by(Zona, Ventana, Metrica, Bosque) |>
   summarise(y_letra = max(Valor, na.rm = TRUE) * 1.10, .groups = "drop")
 
 letras_por_grupo <- letras_por_grupo |>
   select(-any_of("y_letra")) |>
-  left_join(posiciones_letras, by = c("Zona", "Bosque", "Metrica", "Ventana"))
+  left_join(posiciones_letras, by = c("Zona", "Ventana", "Metrica", "Bosque"))
 
 head(letras_por_grupo, 6)
 
 # Preparar la función del gráfico por métrica
 # ----------------------------------------------------------------------------
-graficar_boxplot_ventanas <- function(metrica_elegida) {
+graficar_boxplot_bosques_test <- function(ventana_elegida) {
   
-  datos_grafico <- df_resiliencia_todas |> filter(Metrica == metrica_elegida)
-  letras_grafico <- letras_por_grupo |> filter(Metrica == metrica_elegida)
+  datos_grafico <- df_resiliencia_todas |> filter(Ventana == ventana_elegida)
+  letras_grafico <- letras_por_grupo |> filter(Ventana == ventana_elegida)
   
-  ggplot(datos_grafico, aes(x = Ventana, y = Valor, fill = Ventana)) +
+  ggplot(datos_grafico, aes(x = Bosque, y = Valor, fill = Bosque)) +
     geom_boxplot(alpha = 0.8, outlier.size = 0.3, outlier.alpha = 0.3, width = 0.6) +
     geom_text(
       data = letras_grafico,
-      aes(x = Ventana, y = y_letra, label = Letra),
+      aes(x = Bosque, y = y_letra, label = Letra),
       inherit.aes = FALSE,
       size = 4
     ) +
-    facet_grid(Zona ~ Bosque) +
-    scale_fill_manual(values = colores_ventanas) +
-    guides(fill = "none") +
-    labs(x = "Ventana pre/post-sequía", y = metrica_elegida) +
+    facet_grid(Zona ~ Metrica) +
+    scale_fill_manual(values = colores_bosques) +
+    labs(x = NULL, y = ventana_elegida, fill = "Tipo de Bosque") +
     theme_bw(base_size = 16) +
     theme(
+      legend.position = "bottom",
+      axis.text.x = element_blank(),
+      axis.ticks.x = element_blank(),
       strip.text = element_text(size = 16, face = "bold"),
       strip.background = element_rect(fill = "#f0f0f0")
     )
@@ -264,40 +274,39 @@ graficar_boxplot_ventanas <- function(metrica_elegida) {
 
 # Gráficos
 # ----------------------------------------------------------------------------
+# 1 año
+boxplot_1a_test <- graficar_boxplot_bosques_test("1 año")
+print(boxplot_1a_test)
 
-# Resiliencia
-grafico_resiliencia_ventanas <- graficar_boxplot_ventanas("Resiliencia")
-print(grafico_resiliencia_ventanas)
+# 2 años
+boxplot_2a_test <- graficar_boxplot_bosques_test("2 años")
+print(boxplot_2a_test)
 
-# Resistencia
-grafico_recuperacion_ventanas <- graficar_boxplot_ventanas("Recuperación")
-print(grafico_recuperacion_ventanas)
-
-# Recuperación
-grafico_resistencia_ventanas <- graficar_boxplot_ventanas("Resistencia")
-print(grafico_resistencia_ventanas)
+# 3 años
+boxplot_3a_test <- graficar_boxplot_bosques_test("3 años")
+print(boxplot_3a_test)
 
 # Guardar los gráficos del test de Wilcoxon
 # ----------------------------------------------------------------------------
 ggsave(
-  filename = "04_outputs/g_boxplots/wilcoxon_resiliencia.png",
-  plot = grafico_resiliencia_ventanas,
+  filename = "04_outputs/g_boxplots/boxplot_1a_test.png",
+  plot = boxplot_1a_test,
   width = 12,
   height = 9,
   dpi = 300
 )
 
 ggsave(
-  filename = "04_outputs/g_boxplots/wilcoxon_recuperacion.png",
-  plot = grafico_recuperacion_ventanas,
+  filename = "04_outputs/g_boxplots/boxplot_2a_test.png",
+  plot = boxplot_2a_test,
   width = 12,
   height = 9,
   dpi = 300
 )
 
 ggsave(
-  filename = "04_outputs/g_boxplots/wilcoxon_resistencia.png",
-  plot = grafico_resistencia_ventanas,
+  filename = "04_outputs/g_boxplots/boxplot_3a_test.png",
+  plot = boxplot_3a_test,
   width = 12,
   height = 9,
   dpi = 300
