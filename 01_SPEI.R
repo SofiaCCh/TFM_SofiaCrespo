@@ -5,6 +5,7 @@
 library(ggplot2)
 library(tidyr)
 library(dplyr)
+library(purrr)
 
 # Generar un tema para los gráficos
 tema_tfm <- theme_minimal(base_size = 16) +
@@ -29,7 +30,7 @@ tjn_spei <- read.csv("01_Data/SPEI/tjn_SPEI_serie.csv")
 # 3.1. Dataframe SPEI con toda la serie histórica y los datos de SPEI (3 y 6 meses)
 df_spei <- bind_rows(
   azt_spei |> 
-    select(Fecha = DATA, spei_3, spei_6, spei_12) |>
+    select(Fecha = DATA, spei_3, spei_6, spei_9, spei_12) |>
     mutate(Bosque = "Aztaparreta"), # mutate crea una columna nueva
   liz_spei |>
     select(Fecha = DATA, spei_3, spei_6, spei_9, spei_12) |>
@@ -114,6 +115,28 @@ grafica_spei6_2017 <- ggplot(df_spei6_2017,
        y = "Índice SPEI-6") +
   tema_tfm
 
+# SPEI 9
+# ----------------------------------------------------------------------------
+grafica_spei9_2017 <- ggplot(df_spei9_2017,
+                              aes(x = Fecha,
+                                  y = SPEI)
+) +
+  geom_hline(yintercept = 0, color = "grey20") +
+  geom_line(linewidth = 0.4, color = "#26787E") +
+  geom_hline(yintercept = -1.5, linetype = "dashed", color = "red", linewidth = 1) +
+  annotate("rect", 
+           xmin = as.Date("2022-01-01"), 
+           xmax = as.Date("2022-12-31"),
+           ymin = -Inf,
+           ymax = Inf,
+           alpha = 0.2,
+           fill = "red") +
+  facet_wrap(~ Bosque, ncol = 1) +
+  scale_x_date(date_breaks = "1 year", date_labels = "%Y") +
+  labs(x = "Año",
+       y = "Índice SPEI-9") +
+  tema_tfm
+
 # SPEI 12
 # ----------------------------------------------------------------------------
 grafica_spei12_2017 <- ggplot(df_spei12_2017,
@@ -140,6 +163,7 @@ grafica_spei12_2017 <- ggplot(df_spei12_2017,
 # ----------------------------------------------------------------------------
 print(grafica_spei3_2017)
 print(grafica_spei6_2017)
+print(grafica_spei9_2017)
 print(grafica_spei12_2017)
 
 # ============================================================================
@@ -162,9 +186,57 @@ ggsave(
 )
 
 ggsave(
+  filename = "04_outputs/g_spei/grafica_spei9_zonas.png", 
+  plot = grafica_spei9_2017, 
+  width = 12,
+  height = 9,
+  dpi = 300
+)
+
+ggsave(
   filename = "04_outputs/g_spei/grafica_spei12_zonas.png", 
   plot = grafica_spei12_2017, 
   width = 12,
   height = 9,
   dpi = 300
 )
+
+# ============================================================================
+# 6. Correlaciones índices SPEI
+# ============================================================================
+
+# Formato ancho de tabla, una columna por escala SPEI
+# ----------------------------------------------------------------------------
+df_spei_wide <- df_spei |>
+  pivot_wider(names_from = Escala, values_from = SPEI) |>
+  select(Fecha, Bosque, spei_3, spei_6, spei_9, spei_12)
+
+# Correlación global
+# ----------------------------------------------------------------------------
+cor_global <- df_spei_wide |>
+  select(spei_3, spei_6, spei_9, spei_12) |>
+  cor(use = "pairwise.complete.obs")
+
+round(cor_global, 2)
+round(cor_global^2, 2) # Varianza explicada (R2 = r2)
+
+# Correlación por sitio
+# ----------------------------------------------------------------------------
+cor_azt <- df_spei_wide |>
+  filter(Bosque == "Aztaparreta") |>
+  select(spei_3, spei_6, spei_9, spei_12) |>
+  cor(use = "pairwise.complete.obs")
+
+cor_liz <- df_spei_wide |>
+  filter(Bosque == "Lizardoia") |>
+  select(spei_3, spei_6, spei_9, spei_12) |>
+  cor(use = "pairwise.complete.obs")
+
+cor_tjn <- df_spei_wide |>
+  filter(Bosque == "Tejera Negra") |>
+  select(spei_3, spei_6, spei_9, spei_12) |>
+  cor(use = "pairwise.complete.obs")
+
+round(cor_azt, 2)
+round(cor_liz, 2)
+round(cor_tjn, 2)

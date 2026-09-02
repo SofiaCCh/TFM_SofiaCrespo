@@ -10,6 +10,7 @@ library(dplyr)
 library(tidyverse)
 library(mgcv)
 library(ggpubr)
+library(GGally)
 
 # Paleta de colores para cada tipo de bosque (igual para todo el TFM)
 colores_bosques <- c(
@@ -24,7 +25,7 @@ colores_bosques <- c(
 
 # Generar un tema para los gráficos
 tema_tfm_2 <- theme_minimal(base_size = 16) +
-  theme(legend.position = "right",
+  theme(legend.position = "bottom",
         strip.text = element_text(face = "bold", size = 16),
         axis.text.x = element_text(angle = 45, hjust = 1, size = 14),
         axis.text.y = element_text(size = 14),
@@ -268,6 +269,10 @@ grafico_ndvi <- ggplot(indices_anuales, aes(x = Year, y = NDVI_media, color = Bo
   scale_fill_manual(values = colores_bosques) +
   guides(fill = "none") +
   scale_x_continuous(breaks = 2017:2025) +
+  scale_y_continuous(
+    breaks = function(x) seq(min(x), max(x), length.out = 3),
+    labels = scales::label_number(accuracy = 0.01)
+  ) +
   labs(x = "Año",
        y = "NDVI",
        color = "Tipo de bosque"
@@ -292,6 +297,10 @@ grafico_ndmi <- ggplot(indices_anuales, aes(x = Year, y = NDMI_media, color = Bo
   scale_fill_manual(values = colores_bosques) +
   guides(fill = "none") +
   scale_x_continuous(breaks = 2017:2025) +
+  scale_y_continuous(
+    breaks = function(x) seq(min(x), max(x), length.out = 3),
+    labels = scales::label_number(accuracy = 0.01)
+  ) +
   labs(x = "Año",
        y = "NDMI",
        color = "Tipo de bosque"
@@ -320,19 +329,107 @@ ggsave(
   dpi = 300
 )
 
+# Gráfico que combina ambos índices
+# ----------------------------------------------------------------------------
+library(ggh4x)
+
+datos_combo <- indices_anuales |>
+  select(Zona, Bosque, Year,
+         NDVI_media, NDVI_ci,
+         NDMI_media, NDMI_ci) |>
+  pivot_longer(
+    cols = c(NDVI_media, NDVI_ci, NDMI_media, NDMI_ci),
+    names_to = c("Indice", ".value"),
+    names_pattern = "(NDVI|NDMI)_(media|ci)"
+  ) |>
+  mutate(Indice = factor(Indice, levels = c("NDVI", "NDMI")))
+
+grafico_NDVI_NDMI <- ggplot(datos_combo, aes(x = Year, y = media, color = Bosque, group = Bosque)) +
+  geom_vline(xintercept = 2022, linetype = "dashed", color = "red", linewidth = 0.8) +
+  geom_ribbon(
+    aes(ymin = media - ci,
+        ymax = media + ci,
+        fill = Bosque),
+    color = NA,
+    alpha = 0.15
+  ) +
+  geom_line(linewidth = 1) +
+  geom_point(size = 1.3) +
+  facet_grid2(
+    Zona ~ Indice,
+    scales = "free_y",
+    independent = "y"
+  ) +
+  scale_color_manual(values = colores_bosques) +
+  scale_fill_manual(values = colores_bosques) +
+  guides(fill = "none") +
+  scale_x_continuous(breaks = seq(2017, 2025, by = 2)) +
+  labs(x = "Año",
+       y = NULL,
+       color = "Tipo de bosque") +
+  scale_y_continuous(
+    labels = scales::label_number(accuracy = 0.01)
+  ) +
+  tema_tfm_2 +
+  theme(
+    panel.spacing = unit(1, "lines"),
+    axis.text.x = element_text(angle = 0, hjust = 0.5, size = 12),
+    axis.text.y = element_text(size = 12),
+    panel.border = element_rect(color = "grey70", fill = NA, linewidth = 0.4),
+    panel.grid.minor = element_blank(),
+    panel.grid.major = element_line(color = "grey92"),
+    plot.caption = element_text(size = 11, color = "grey40", hjust = 0)
+  )
+
+print(grafico_NDVI_NDMI)
+
+ggsave(
+  filename = "04_outputs/g_trayectoria_NDVI_NDMI/grafico_NDVI_NDMI.png",
+  plot = grafico_NDVI_NDMI,
+  width = 14,
+  height = 9,
+  dpi = 300
+)
+
 # CORRELACIÓN ENTRE NDVI Y NDMI (gráfico 3x3)
 # ----------------------------------------------------------------------------
-set.seed(123)
+# Se usan todos los píxeles de datos_limpios
+datos_correlacion <- datos_limpios
 
-# Muestra de 1000 píxeles
-datos_correlacion <- datos_limpios |>
+# Cálculo de la correlación de Pearson (r), su significancia (p-valor) y el
+# coeficiente de determinación (R2) para cada combinación de Zona y Bosque
+
+# Se usa Pearson porque el ajuste que se dibuja en el gráfico es una
+# regresión lineal (geom_smooth(method = "lm")), y con Pearson R2 = r^2,
+# es decir, ambos valores son coherentes entre sí (a diferencia de Spearman,
+# que es una correlación de rangos y no corresponde a un ajuste lineal).
+
+etiquetas_correlacion <- datos_correlacion |>
   group_by(Zona, Bosque) |>
-  slice_sample(n = 1000) |>
-  ungroup()
+  summarise(
+    test = list(cor.test(NDMI, NDVI, method = "pearson")),
+    .groups = "drop"
+  ) |>
+  mutate(
+    r        = purrr::map_dbl(test, ~ unname(.x$estimate)),
+    p_valor  = purrr::map_dbl(test, ~ .x$p.value),
+    R2       = r^2,
+    # Asteriscos de significancia: * p<0.05, ** p<0.01, *** p<0.001
+    significancia = case_when(
+      p_valor < 0.001 ~ "***",
+      p_valor < 0.01  ~ "**",
+      p_valor < 0.05  ~ "*",
+      TRUE            ~ ""
+    ),
+    etiqueta = sprintf("r = %.2f%s\nR\u00b2 = %.2f", r, significancia, R2)
+  ) |>
+  select(Zona, Bosque, r, p_valor, R2, significancia, etiqueta)
+
+print(etiquetas_correlacion)
 
 # Dibujamos el gráfico 3x3
 grafico_correlacion_3x3 <- ggplot(datos_correlacion, aes(x = NDMI, y = NDVI, color = Bosque, fill = Bosque)) +
-  geom_point(alpha = 0.25, size = 1.5) +
+  geom_point(alpha = 0.15, size = 1) +
   geom_smooth(
     method = "lm", 
     formula = y ~ x,
@@ -340,12 +437,15 @@ grafico_correlacion_3x3 <- ggplot(datos_correlacion, aes(x = NDMI, y = NDVI, col
     fill = "darkred",
     alpha = 0.2, 
     linewidth = 1) +
-  stat_cor(
-    aes(label = after_stat(rr.label)),
+  geom_text(
+    data = etiquetas_correlacion,
+    aes(x = -Inf, y = Inf, label = etiqueta),
+    inherit.aes = FALSE,
+    hjust = -0.05,
+    vjust = 1.2,
+    size = 4.2,
     color = "black",
-    size = 4.5,
-    label.x.npc = "left",
-    label.y.npc = "top"
+    lineheight = 0.95
   ) +
   facet_grid(Bosque ~ Zona) +
   scale_color_manual(values = colores_bosques) +
@@ -371,9 +471,70 @@ print(grafico_correlacion_3x3)
 
 # Guardar el gráfico
 ggsave(
-  filename = "04_outputs/g_correlacion_3x3/correlacion_3x3_NDVI-NDMI.png", 
+  filename = "04_outputs/g_correlacion_3x3/correlacion_3x3_NDVI-NDMI_2.png", 
   plot = grafico_correlacion_3x3, 
   width = 12,
   height = 9,
+  dpi = 300
+)
+
+# MATERIAL SUPLEMENTARIO: gráfico "pairs" NDVI-NDMI (GGally::ggpairs)
+# ----------------------------------------------------------------------------
+# Histogramas en la diagonal, dispersión + recta de regresión (lm) debajo,
+# y correlación de Pearson con significancia arriba. Mismo criterio de
+# asteriscos que en el gráfico principal (* p<0.05, ** p<0.01, *** p<0.001).
+# Se calcula sobre todos los píxeles limpios, sin distinguir Zona ni Bosque.
+
+# Panel superior: texto con r de Pearson y su significancia
+panel_superior_pairs <- function(data, mapping, ...) {
+  x <- GGally::eval_data_col(data, mapping$x)
+  y <- GGally::eval_data_col(data, mapping$y)
+  test <- cor.test(x, y, method = "pearson")
+  r <- unname(test$estimate)
+  p_valor <- test$p.value
+  significancia <- case_when(
+    p_valor < 0.001 ~ "***",
+    p_valor < 0.01  ~ "**",
+    p_valor < 0.05  ~ "*",
+    TRUE            ~ ""
+  )
+  etiqueta <- sprintf("r = %.2f%s", r, significancia)
+  ggally_text(
+    label = etiqueta,
+    mapping = aes(),
+    color = "black",
+    size = 5
+  ) +
+    theme_void()
+}
+
+# Panel inferior: dispersión + recta de regresión lineal
+panel_inferior_pairs <- function(data, mapping, ...) {
+  ggplot(data = data, mapping = mapping) +
+    geom_point(alpha = 0.1, size = 0.5, color = "#2C3E50") +
+    geom_smooth(method = "lm", formula = y ~ x, color = "red",
+                fill = "darkred", alpha = 0.2, linewidth = 0.8)
+}
+
+grafico_pairs_suplementario <- ggpairs(
+  datos_correlacion,
+  columns = c("NDVI", "NDMI"),
+  upper = list(continuous = panel_superior_pairs),
+  lower = list(continuous = panel_inferior_pairs),
+  diag  = list(continuous = wrap("barDiag", bins = 30, fill = "#4C72B0"))
+) +
+  theme_bw(base_size = 14) +
+  theme(
+    strip.text = element_text(size = 14, face = "bold"),
+    strip.background = element_rect(fill = "#f0f0f0")
+  )
+
+print(grafico_pairs_suplementario)
+
+ggsave(
+  filename = "04_outputs/g_correlacion_3x3/pairs_NDVI-NDMI_suplementario.png",
+  plot = grafico_pairs_suplementario,
+  width = 8,
+  height = 8,
   dpi = 300
 )
