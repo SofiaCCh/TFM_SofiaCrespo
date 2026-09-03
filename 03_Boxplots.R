@@ -22,14 +22,12 @@ colores_bosques <- c(
 # Año de la sequía (fijo para las tres ventanas)
 aseq <- 2022
 
-
 # Función: calcula Resistencia, Recuperación y Resiliencia
 # para una ventana pre/post concreta (Lloret et al. 2011:
 # PreDr y PostDr son la MEDIA de los años previos/posteriores a la
 # sequía, no un año aislado; ver también Moreno-Fernández et al. 2022,
 # Ecosystems, que usa la media de los 4 años previos/posteriores)
 # ----------------------------------------------------------------------------
-
 calcular_resiliencia <- function(datos, ventana, aseq) {
   
   anios_pre  <- (aseq - ventana):(aseq - 1)
@@ -71,7 +69,7 @@ calcular_resiliencia <- function(datos, ventana, aseq) {
   # Unir las tres métricas y ordenar los factores
   bind_rows(df_rc, df_rs, df_rt) |>
     mutate(
-      Metrica = factor(Metrica, levels = c("Recuperación", "Resiliencia", "Resistencia")),
+      Metrica = factor(Metrica, levels = c("Resistencia", "Recuperación", "Resiliencia")),
       Bosque = factor(Bosque, levels = names(colores_bosques))
     )
 }
@@ -79,7 +77,6 @@ calcular_resiliencia <- function(datos, ventana, aseq) {
 
 # Función: dibuja el boxplot a partir de una tabla ya calculada
 # ----------------------------------------------------------------------------
-
 graficar_boxplot_resiliencia <- function(df_boxplot) {
   ggplot(df_boxplot, aes(x = Bosque, y = Valor, fill = Bosque)) +
     geom_boxplot(alpha = 0.8, outlier.size = 0.3, outlier.alpha = 0.3, width = 0.6) +
@@ -113,6 +110,27 @@ print(boxplot_2a)
 df_boxplot_3a <- calcular_resiliencia(datos_limpios, ventana = 3, aseq = aseq)
 boxplot_3a <- graficar_boxplot_resiliencia(df_boxplot_3a)
 print(boxplot_3a)
+
+# Tabla de estadísticos para ventana temporal de 3 años
+tabla_3a <- df_boxplot_3a |>
+  group_by(Zona, Bosque, Metrica) |>
+  summarise(
+    Mediana = median(Valor, na.rm = TRUE),
+    P25 = quantile(Valor, 0.25, na.rm = TRUE),
+    P75 = quantile(Valor, 0.75, na.rm = TRUE),
+    Minimo = min(Valor, na.rm = TRUE),
+    Maximo = max(Valor, na.rm = TRUE),
+    DE = sd(Valor, na.rm = TRUE),
+    .groups = "drop"
+  )
+
+tabla_3a
+
+# Separar la tabla por zona
+tabla_3a_zona <- split(tabla_3a, tabla_3a$Zona)
+tabla_3a_zona$Aztaparreta
+tabla_3a_zona$Lizardoia
+tabla_3a_zona$`Tejera Negra`
 
 # Guardar los 3 boxplot
 # ----------------------------------------------------------------------------
@@ -163,6 +181,25 @@ df_resiliencia_todas <- bind_rows(
   mutate(Ventana = factor(Ventana, levels = c("1 año", "2 años", "3 años")))
 
 head(df_resiliencia_todas)
+
+# Correlación de Pearson entre ventanas temporales
+# ----------------------------------------------------------------------------
+df_ventanas_ancho <- df_resiliencia_todas |>
+  filter(Metrica == "Resiliencia") |>
+  select(Zona, Bosque, Pixel_ID, Ventana, Valor) |>
+  pivot_wider(names_from = Ventana, values_from = Valor)
+
+# Correlación de Pearson por Zona-Bosque-Métrica, entre pares de ventanas
+resultados_correlacion_ventanas <- df_ventanas_ancho |>
+  group_by(Zona, Bosque) |>
+  summarise(
+    r_1_2 = cor(`1 año`, `2 años`, method = "pearson", use = "complete.obs"),
+    r_1_3 = cor(`1 año`, `3 años`, method = "pearson", use = "complete.obs"),
+    r_2_3 = cor(`2 años`, `3 años`, method = "pearson", use = "complete.obs"),
+    .groups = "drop"
+  )
+
+resultados_correlacion_ventanas
 
 # Kruskal-Wallis: test global dentro de cada Zona-Ventana-Métrica
 # ----------------------------------------------------------------------------

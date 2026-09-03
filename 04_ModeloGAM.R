@@ -235,3 +235,65 @@ ggsave(
   height = 9,
   dpi = 300
 )
+
+# Gráfico que combina ambos índices
+# ----------------------------------------------------------------------------
+library(ggh4x)
+
+predicciones_combo <- predicciones_gam |>
+  select(Zona, Bosque, Year,
+         NDVI_pred, NDVI_se,
+         NDMI_pred, NDMI_se) |>
+  pivot_longer(
+    cols = c(NDVI_pred, NDVI_se, NDMI_pred, NDMI_se),
+    names_to = c("Indice", ".value"),
+    names_pattern = "(NDVI|NDMI)_(pred|se)"
+  ) |>
+  mutate(Indice = factor(Indice, levels = c("NDVI", "NDMI")))
+
+grafico_gam_combo <- ggplot(predicciones_combo, aes(x = Year, y = pred, color = Bosque, group = Bosque)) +
+  geom_vline(xintercept = 2022, linetype = "dashed", color = "red", linewidth = 0.8) +
+  geom_ribbon(
+    aes(ymin = pred - 1.96 * se,
+        ymax = pred + 1.96 * se,
+        fill = Bosque),
+    color = NA,
+    alpha = 0.15
+  ) +
+  geom_line(linewidth = 1) +
+  facet_grid2(
+    Zona ~ Indice,
+    scales = "free_y",
+    independent = "y"
+  ) +
+  scale_color_manual(values = colores_bosques) +
+  scale_fill_manual(values = colores_bosques) +
+  guides(fill = "none") +
+  scale_x_continuous(breaks = seq(2017, 2025, by = 2)) +
+  labs(x = "Año",
+       y = NULL,
+       color = "Tipo de bosque") +
+  scale_y_continuous(
+    labels = scales::label_number(accuracy = 0.01)
+  ) +
+  tema_tfm_2 +
+  theme(
+    legend.position = "bottom",
+    panel.spacing = unit(1, "lines"),
+    axis.text.x = element_text(angle = 0, hjust = 0.5, size = 12),
+    axis.text.y = element_text(size = 12),
+    panel.border = element_rect(color = "grey70", fill = NA, linewidth = 0.4),
+    panel.grid.minor = element_blank(),
+    panel.grid.major = element_line(color = "grey92"),
+    plot.caption = element_text(size = 11, color = "grey40", hjust = 0)
+  )
+
+print(grafico_gam_combo)
+
+ggsave(
+  filename = "04_outputs/g_modelos_GAM/gam_combo.png",
+  plot = grafico_gam_combo,
+  width = 14,
+  height = 9,
+  dpi = 300
+)

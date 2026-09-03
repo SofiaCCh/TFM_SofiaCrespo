@@ -478,63 +478,35 @@ ggsave(
   dpi = 300
 )
 
-# MATERIAL SUPLEMENTARIO: gráfico "pairs" NDVI-NDMI (GGally::ggpairs)
+# MATRIZ DE CORRELACIÓN ENTRE NDVI Y NDMI
 # ----------------------------------------------------------------------------
-# Histogramas en la diagonal, dispersión + recta de regresión (lm) debajo,
-# y correlación de Pearson con significancia arriba. Mismo criterio de
-# asteriscos que en el gráfico principal (* p<0.05, ** p<0.01, *** p<0.001).
-# Se calcula sobre todos los píxeles limpios, sin distinguir Zona ni Bosque.
+model_data <- datos_correlacion |>
+  select(NDVI, NDMI)
 
-# Panel superior: texto con r de Pearson y su significancia
-panel_superior_pairs <- function(data, mapping, ...) {
-  x <- GGally::eval_data_col(data, mapping$x)
-  y <- GGally::eval_data_col(data, mapping$y)
-  test <- cor.test(x, y, method = "pearson")
-  r <- unname(test$estimate)
-  p_valor <- test$p.value
-  significancia <- case_when(
-    p_valor < 0.001 ~ "***",
-    p_valor < 0.01  ~ "**",
-    p_valor < 0.05  ~ "*",
-    TRUE            ~ ""
-  )
-  etiqueta <- sprintf("r = %.2f%s", r, significancia)
-  ggally_text(
-    label = etiqueta,
-    mapping = aes(),
-    color = "black",
-    size = 5
-  ) +
-    theme_void()
-}
+cor(model_data)
+GGally::ggpairs(model_data)
 
-# Panel inferior: dispersión + recta de regresión lineal
-panel_inferior_pairs <- function(data, mapping, ...) {
+# 1. Definir la función para el panel INFERIOR (puntos + línea de tendencia)
+lower_fn <- function(data, mapping, ...) {
   ggplot(data = data, mapping = mapping) +
-    geom_point(alpha = 0.1, size = 0.5, color = "#2C3E50") +
-    geom_smooth(method = "lm", formula = y ~ x, color = "red",
-                fill = "darkred", alpha = 0.2, linewidth = 0.8)
+    geom_point(size = 2, alpha = 0.5, color = "#2c3e50") +     # Puntitos
+    geom_smooth(method = "lm", se = TRUE, color = "#E74C3C",   # Línea roja
+                fill = "#FADBD8", ...) +                       # Banda de confianza rosa
+    theme_minimal()
 }
 
-grafico_pairs_suplementario <- ggpairs(
-  datos_correlacion,
-  columns = c("NDVI", "NDMI"),
-  upper = list(continuous = panel_superior_pairs),
-  lower = list(continuous = panel_inferior_pairs),
-  diag  = list(continuous = wrap("barDiag", bins = 30, fill = "#4C72B0"))
-) +
-  theme_bw(base_size = 14) +
-  theme(
-    strip.text = element_text(size = 14, face = "bold"),
-    strip.background = element_rect(fill = "#f0f0f0")
-  )
-
-print(grafico_pairs_suplementario)
+# 2. Aplicarlo en ggpairs
+cor_NDVI_NDMI <- ggpairs(
+  model_data,
+  lower = list(continuous = lower_fn), # Aquí se aplica la función
+  diag = list(continuous = wrap("barDiag", bins = 30,
+                                fill = "#2E86C1", color = "white")),
+  upper = list(continuous = wrap("cor", size = 4, color = "black")))
 
 ggsave(
-  filename = "04_outputs/g_correlacion_3x3/pairs_NDVI-NDMI_suplementario.png",
-  plot = grafico_pairs_suplementario,
-  width = 8,
+  filename = "04_outputs/g_correlacion_3x3/cor_NDVU-NDMI.png",
+  plot = cor_NDVI_NDMI,
+  width = 10,
   height = 8,
   dpi = 300
 )
