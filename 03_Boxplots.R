@@ -79,6 +79,7 @@ calcular_resiliencia <- function(datos, ventana, aseq) {
 # ----------------------------------------------------------------------------
 graficar_boxplot_resiliencia <- function(df_boxplot) {
   ggplot(df_boxplot, aes(x = Bosque, y = Valor, fill = Bosque)) +
+    geom_hline(yintercept = 1, linetype = "dashed", color = "grey40", linewidth = 0.5) +
     geom_boxplot(alpha = 0.8, outlier.size = 0.3, outlier.alpha = 0.3, width = 0.6) +
     facet_grid(Zona ~ Metrica) +
     scale_fill_manual(values = colores_bosques) +
@@ -135,7 +136,7 @@ tabla_3a_zona$`Tejera Negra`
 # Guardar los 3 boxplot
 # ----------------------------------------------------------------------------
 ggsave(
-  filename = "04_outputs/g_boxplots/boxplot_1a.png", 
+  filename = "04_outputs/g_boxplots/boxplot_1a_V2.png", 
   plot = boxplot_1a, 
   width = 12,
   height = 9,
@@ -143,7 +144,7 @@ ggsave(
 )
 
 ggsave(
-  filename = "04_outputs/g_boxplots/boxplot_2a.png", 
+  filename = "04_outputs/g_boxplots/boxplot_2a_v2.png", 
   plot = boxplot_2a, 
   width = 12,
   height = 9,
@@ -151,7 +152,7 @@ ggsave(
 )
 
 ggsave(
-  filename = "04_outputs/g_boxplots/boxplot_3a.png", 
+  filename = "04_outputs/g_boxplots/boxplot_3a_v2.png", 
   plot = boxplot_3a, 
   width = 12,
   height = 9,
@@ -289,6 +290,7 @@ graficar_boxplot_bosques_test <- function(ventana_elegida) {
   letras_grafico <- letras_por_grupo |> filter(Ventana == ventana_elegida)
   
   ggplot(datos_grafico, aes(x = Bosque, y = Valor, fill = Bosque)) +
+    geom_hline(yintercept = 1, linetype = "dashed", color = "grey40", linewidth = 0.5) +
     geom_boxplot(alpha = 0.8, outlier.size = 0.3, outlier.alpha = 0.3, width = 0.6) +
     geom_text(
       data = letras_grafico,
@@ -298,7 +300,7 @@ graficar_boxplot_bosques_test <- function(ventana_elegida) {
     ) +
     facet_grid(Zona ~ Metrica) +
     scale_fill_manual(values = colores_bosques) +
-    labs(x = NULL, y = ventana_elegida, fill = "Tipo de Bosque") +
+    labs(x = NULL, y = NULL, fill = "Tipo de Bosque") +
     theme_bw(base_size = 16) +
     theme(
       legend.position = "bottom",
@@ -326,7 +328,7 @@ print(boxplot_3a_test)
 # Guardar los gráficos del test de Wilcoxon
 # ----------------------------------------------------------------------------
 ggsave(
-  filename = "04_outputs/g_boxplots/boxplot_1a_test.png",
+  filename = "04_outputs/g_boxplots/boxplot_1a_test_V2.png",
   plot = boxplot_1a_test,
   width = 12,
   height = 9,
@@ -334,7 +336,7 @@ ggsave(
 )
 
 ggsave(
-  filename = "04_outputs/g_boxplots/boxplot_2a_test.png",
+  filename = "04_outputs/g_boxplots/boxplot_2a_test_V2.png",
   plot = boxplot_2a_test,
   width = 12,
   height = 9,
@@ -342,7 +344,7 @@ ggsave(
 )
 
 ggsave(
-  filename = "04_outputs/g_boxplots/boxplot_3a_test.png",
+  filename = "04_outputs/g_boxplots/boxplot_3a_test_v2.png",
   plot = boxplot_3a_test,
   width = 12,
   height = 9,

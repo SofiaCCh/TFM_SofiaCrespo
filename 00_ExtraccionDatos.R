@@ -1,5 +1,5 @@
 # ============================================================================
-## Extract Landsat pixels by forest type and year
+# Extract Landsat pixels by forest type and year
 # ============================================================================
 
 # ============================================================================
@@ -93,7 +93,6 @@ comprobar_geometria_zona <- function(df_zona) {
     compareGeom(referencia, rast(x), stopOnError = FALSE)
   })
   
-  # Emitir mensaje según el resultado
   if (!all(geometrias_iguales)) {
     stop(paste("ERROR: Los rásters de la zona", nombre_zona, "NO tienen geometría idéntica."))
   } else {
@@ -188,7 +187,7 @@ extraer_pixeles <- function(archivos_raster) {
 # 7. Extraer cada ráster
 # ============================================================================
 
-# map_dfr de purrr aplica nuestra función a cada uno de los 39 archivos .tif
+# map_dfr de purrr aplica la función a cada uno de los archivos .tif
 # y une todas las tablas resultantes en un solo dataframe gigante
 
 db_pixel <- archivos_raster |>

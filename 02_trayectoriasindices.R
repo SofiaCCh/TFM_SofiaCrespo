@@ -9,7 +9,7 @@ library(tidyr)
 library(dplyr)
 library(tidyverse)
 library(mgcv)
-library(ggpubr)
+#library(ggpubr)
 library(GGally)
 
 # Paleta de colores para cada tipo de bosque (igual para todo el TFM)
@@ -134,9 +134,6 @@ datos |>
   filter(is.na(NDMI)) |>
   count(Zona, Bosque, Year) |>
   arrange(desc(n))
-# -> El 92% de los casos caen en 2014, repartidos entre varias zonas y
-#    bosques -> apunta a huecos del compuesto de ese año (posible
-#    cobertura de nubes), no a un error de procesamiento propio
 
 # --------------------------------------------------------------------------
 # Comprobar si el resto de bandas (no solo B4/B5) también están a 0
@@ -408,12 +405,14 @@ etiquetas_correlacion <- datos_correlacion |>
   group_by(Zona, Bosque) |>
   summarise(
     test = list(cor.test(NDMI, NDVI, method = "pearson")),
+    modelo = list(lm(NDVI ~ NDMI, data = pick(NDVI, NDMI))),
     .groups = "drop"
   ) |>
   mutate(
     r        = purrr::map_dbl(test, ~ unname(.x$estimate)),
     p_valor  = purrr::map_dbl(test, ~ .x$p.value),
     R2       = r^2,
+    beta     = purrr::map_dbl(modelo, ~ unname(coef(.x)["NDMI"])),
     # Asteriscos de significancia: * p<0.05, ** p<0.01, *** p<0.001
     significancia = case_when(
       p_valor < 0.001 ~ "***",
@@ -421,9 +420,9 @@ etiquetas_correlacion <- datos_correlacion |>
       p_valor < 0.05  ~ "*",
       TRUE            ~ ""
     ),
-    etiqueta = sprintf("r = %.2f%s\nR\u00b2 = %.2f", r, significancia, R2)
+    etiqueta = sprintf("R\u00b2 = %.2f\nr = %.2f\n\u03b2 = %.2f%s", R2, r, beta, significancia)
   ) |>
-  select(Zona, Bosque, r, p_valor, R2, significancia, etiqueta)
+  select(Zona, Bosque, r, p_valor, R2, beta, significancia, etiqueta)
 
 print(etiquetas_correlacion)
 
@@ -471,7 +470,7 @@ print(grafico_correlacion_3x3)
 
 # Guardar el gráfico
 ggsave(
-  filename = "04_outputs/g_correlacion_3x3/correlacion_3x3_NDVI-NDMI_2.png", 
+  filename = "04_outputs/g_correlacion_3x3/correlacion_3x3_NDVI-NDMI_3.png", 
   plot = grafico_correlacion_3x3, 
   width = 12,
   height = 9,
